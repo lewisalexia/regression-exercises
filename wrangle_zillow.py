@@ -20,6 +20,9 @@ import seaborn as sns
 # Splits
 from sklearn.model_selection import train_test_split
 
+# Scaling
+import sklearn.preprocessing
+
 # -------------------------------------------------------------------------
 
 # ACQUIRE
@@ -69,57 +72,116 @@ def get_zillow_261():
 # TOTAL WRANGLE FUNCTION
 
 def wrangle_zillow(df):
-    """This function is meant to clean and return the prepared df.
+    """This function is meant to clean and return the prepared df with
+    encoded variables - ready for scaling/modeling.
     """
-    # read in or create the CSV
-    # df = get_zillow_261()
-    # print(f"Returning Zillow's Single Family Residential Homes from 2017")
+    print(f"Returning Zillow's Single Family Residential Homes from 2017")
     
     # rename columns
-    df.rename(columns = {'bedroomcnt':'bed', 'bathroomcnt':'bath', 'calculatedfinishedsquarefeet':\
+    df = df.rename(columns = {'bedroomcnt':'bed', 'bathroomcnt':'bath', 'calculatedfinishedsquarefeet':\
     'sqft', 'taxvaluedollarcnt': 'assessed_worth', 'yearbuilt':'year', 'taxamount':'property_taxes',\
-    'propertylandusetypeid':'use', 'fips':'county'}, inplace = True)
+    'propertylandusetypeid':'use', 'fips':'county'})
     print(f"--------------------------------------------")
     print(f"Renamed columns for ease of use")
 
     # drop all nulls
-    df = df.dropna()
-    print(f"NaN's removed - 99% of data remains")
+    df_clean = df.dropna()
+    print(f"NaN's removed - Percent Original Data Remaining: {round(df_clean.shape[0]/df.shape[0]*100,0)}")
 
-    # change data types for fips and use id
-    df.year = df.year.astype(int)
-    df.use = df.use.astype(int)
-    print(f"Year and Use data types changed from float to integer\n")
+    # drop parcelid and use (used for initial exploration only)
+    df_clean = df_clean.drop(columns=['parcelid', 'use'])
+
+    # move target column to index position 0
+    df_clean.insert(0, 'assessed_worth', df_clean.pop('assessed_worth'))
+    print(f"Moved target column to index 0 for ease of assignment")
+
+    # change data types and map FIPS code
+    df_clean.county = df_clean.county.map({6037:"LA", 6059:"Orange", 6111:"Ventura"})
+    df_clean.bed = df_clean.bed.astype(int)
+    df_clean.year = df_clean.year.astype(int)
+    print(f"Bed and year data types changed from float to integer\nChanged FIPS code to actual county name")
 
     # outliers
-    df = df [df.sqft < 25_000]
-    df = df [df.assessed_worth < df.assessed_worth.quantile(.95)].copy()
-    print(f"Outliers removed from Sqft - <25,000 and Assessed Worth > 95th quantile")
+    df_clean = df_clean [df_clean.sqft < 25_000]
+    df_clean = df_clean [df_clean.assessed_worth < df_clean.assessed_worth.quantile(.95)].copy()
+    print(f"Outliers removed from Sqft < 25,000 and Assessed Worth > 95th quantile")
 
-    return df
+    # encode / get dummies
+    dummy_df = pd.get_dummies(df_clean[['county']], dummy_na=False, drop_first=[True])
+
+
+    # clean up and return final product
+    df_clean = pd.concat([df_clean, dummy_df], axis=1).drop(columns=['county'])
+
+    return df_clean
 
 # -------------------------------------------------------------------------
 
 # TRAIN, VALIDATE, TEST SPLIT
 
-def split_zillow(df, target_variable): ## B R O K E N!!
+def split_zillow(df):
     '''
-    Takes in a dataframe and return train, validate, test subset dataframes
+    This function takes in a DataFrame and returns train, validate, and test DataFrames.
+
+    (train, validate, test = split_zillow() to assign variable and return shape of df.)
     '''
-    train, test = train_test_split(df, #first split
-                                   test_size=.2, 
-                                   random_state=123, 
-                                   stratify=df[target_variable])
-    train, validate = train_test_split(train, #second split
-                                       test_size=.25, 
-                                       random_state=123, 
-                                       stratify=train[target_variable])
+    train_validate, test = train_test_split(df, test_size=.2, random_state=123)
+    train, validate = train_test_split(train_validate,
+                                       test_size=.25,
+                                       random_state=123)
+    
     print(f'Prepared DF: {df.shape}')
     print(f'Train: {train.shape}')
     print(f'Validate: {validate.shape}')
     print(f'Test: {test.shape}')
-
+    
     return train, validate, test
 
+# -------------------------------------------------------------------------
 
+# SCALING
 
+def scale_zillow(X_train, X_validate, X_test):
+    """This function is built to take in train, validate, and test dataframes
+    and scale them returning a visual of the before and after.
+    """
+
+    # make the scaler
+    robustscaler = sklearn.preprocessing.RobustScaler()
+
+    # Note that we only call .fit with the training data,
+    # but we use .transform to apply the scaling to all the data splits.
+
+    # fit the scaler on train ONLY
+    robustscaler.fit(X_train)
+
+    # use the scaler
+    X_train_scaled_ro = robustscaler.transform(X_train)
+    X_validate_scaled_ro = robustscaler.transform(X_validate)
+    X_test_scaled_ro = robustscaler.transform(X_test)
+
+    # visualize
+    plt.figure(figsize=(13, 6))
+
+    plt.subplot(321)
+    plt.hist(X_train, bins=25, ec='black')
+    plt.title('Original Train')
+    plt.subplot(322)
+    plt.hist(X_train_scaled_ro, bins=25, ec='black')
+    plt.title('Scaled Train')
+
+    plt.subplot(323)
+    plt.hist(X_validate, bins=25, ec='black')
+    plt.title('Original Validate')
+    plt.subplot(324)
+    plt.hist(X_validate_scaled_ro, bins=25, ec='black')
+    plt.title('Scaled Validate')
+
+    plt.subplot(325)
+    plt.hist(X_test, bins=25, ec='black')
+    plt.title('Original Test')
+    plt.subplot(326)
+    plt.hist(X_test_scaled_ro, bins=25, ec= 'black')
+    plt.title('Scaled Test')
+
+    plt.show()
