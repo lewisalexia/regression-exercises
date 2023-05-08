@@ -109,7 +109,6 @@ def wrangle_zillow(df):
     # encode / get dummies
     dummy_df = pd.get_dummies(df_clean[['county']], dummy_na=False, drop_first=[True])
 
-
     # clean up and return final product
     df_clean = pd.concat([df_clean, dummy_df], axis=1).drop(columns=['county'])
 
@@ -139,6 +138,31 @@ def split_zillow(df):
 
 # -------------------------------------------------------------------------
 
+# X_train, y_train, X_validate, y_validate, X_test, y_test
+
+def x_y_train_validate_test(train, validate, test, target):
+    """This function takes in the train, validate, and test dataframes and assigns 
+    the chosen features to X_train, X_validate, X_test, and y_train, y_validate, 
+    and y_test.
+    """
+
+    # X_train, validate, and test to be used for modeling
+    X_train = train[1:]
+    X_validate = validate[1:]
+    X_test = test[1:]
+    y_train = train[{target}]
+    y_validate = validate[{target}]
+    y_test = test[{target}]
+    
+    print(f"Verifying number of features and target:")
+    print(f'Train: {X_train.shape[1], y_train.shape[1]}')
+    print(f'Validate: {X_validate.shape[1], y_validate.shape[1]}')
+    print(f'Test: {X_test.shape[1], y_test.shape[1]}')
+
+    return X_train, y_train, X_validate, y_validate, X_test, y_test
+
+# -------------------------------------------------------------------------
+
 # SCALING
 
 def scale_zillow(X_train, X_validate, X_test):
@@ -161,27 +185,34 @@ def scale_zillow(X_train, X_validate, X_test):
     X_test_scaled_ro = robustscaler.transform(X_test)
 
     # visualize
-    plt.figure(figsize=(13, 6))
+    plt.figure(figsize=(13, 8))
 
-    plt.subplot(321)
+    ax = plt.subplot(321)
     plt.hist(X_train, bins=25, ec='black')
     plt.title('Original Train')
-    plt.subplot(322)
+    ax = plt.subplot(322)
     plt.hist(X_train_scaled_ro, bins=25, ec='black')
     plt.title('Scaled Train')
 
-    plt.subplot(323)
+    ax = plt.subplot(323)
     plt.hist(X_validate, bins=25, ec='black')
     plt.title('Original Validate')
-    plt.subplot(324)
+    ax = plt.subplot(324)
     plt.hist(X_validate_scaled_ro, bins=25, ec='black')
     plt.title('Scaled Validate')
 
-    plt.subplot(325)
+    ax = plt.subplot(325)
     plt.hist(X_test, bins=25, ec='black')
     plt.title('Original Test')
-    plt.subplot(326)
+    ax = plt.subplot(326)
     plt.hist(X_test_scaled_ro, bins=25, ec= 'black')
     plt.title('Scaled Test')
-
+    
+    plt.subplots_adjust(left=0.1,
+                    bottom=0.1, 
+                    right=0.9, 
+                    top=0.9, 
+                    wspace=0.4, 
+                    hspace=0.4)
+    
     plt.show()

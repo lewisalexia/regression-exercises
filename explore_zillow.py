@@ -47,25 +47,3 @@ def visual_explore_univariate(df):
 
 # -------------------------------------------------------------------------
 
-# X_train, y_train, X_validate, y_validate, X_test, y_test
-
-def x_y_train_validate_test(train, validate, test, target):
-    """This function takes in the train, validate, and test dataframes and assigns 
-    the chosen features to X_train, X_validate, X_test, and y_train, y_validate, 
-    and y_test.
-    """
-
-    # X_train, validate, and test to be used for modeling
-    X_train = train[1:]
-    X_validate = validate[1:]
-    X_test = test[1:]
-    y_train = train[{target}]
-    y_validate = validate[{target}]
-    y_test = test[{target}]
-    
-    print(f"Verifying number of features and target:")
-    print(f'Train: {X_train.shape[1], y_train.shape[1]}')
-    print(f'Validate: {X_validate.shape[1], y_validate.shape[1]}')
-    print(f'Test: {X_test.shape[1], y_test.shape[1]}')
-
-    return X_train, y_train, X_validate, y_validate, X_test, y_test
