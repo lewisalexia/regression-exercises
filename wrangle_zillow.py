@@ -71,6 +71,25 @@ def get_zillow_261():
 
 # TOTAL WRANGLE FUNCTION
 
+def outlier(df, feature, m):
+    '''
+    outlier will take in a dataframe's feature:
+    - calculate it's 1st & 3rd quartiles,
+    - use their difference to calculate the IQR
+    - then apply to calculate upper and lower bounds
+    - using the `m` multiplier
+    '''
+    q1 = df[feature].quantile(.25)
+    q3 = df[feature].quantile(.75)
+    
+    iqr = q3 - q1
+    
+    multiplier = m
+    upper_bound = q3 + (multiplier * iqr)
+    lower_bound = q1 - (multiplier * iqr)
+    
+    return upper_bound, lower_bound
+
 def wrangle_zillow(df):
     """This function is meant to clean and return the prepared df with
     encoded variables - ready for scaling/modeling.
@@ -107,11 +126,67 @@ def wrangle_zillow(df):
     print(f"Outliers removed from Sqft < 25,000 and Assessed Worth > 95th quantile")
 
     # encode / get dummies
-    dummy_df = pd.get_dummies(df_clean[['county']], dummy_na=False, drop_first=[True])
+    # dummy_df = pd.get_dummies(df_clean[['county']], dummy_na=False, drop_first=[True])
 
     # clean up and return final product
-    df_clean = pd.concat([df_clean, dummy_df], axis=1).drop(columns=['county'])
+    # df_clean = pd.concat([df_clean, dummy_df], axis=1).drop(columns=['county'])
+    # df_clean = df_clean.rename(columns={'county_Orange':'orange','county_Ventura':'ventura'})
+    return df_clean
 
+# SECOND RUN THROUGH OF EXPLORE
+
+def wrangle_zillow_2(df):
+    """This function is meant to clean and return the prepared df with
+    encoded variables.
+
+    This function is the second iteration of exploration on this dataset.
+
+    Further shrinking the outliers to prevent skewing of the data for the 
+    target audience.
+    """
+    print(f"Returning Zillow's Single Family Residential Homes from 2017")
+    
+    # rename columns
+    df = df.rename(columns = {'bedroomcnt':'bed', 'bathroomcnt':'bath', 'calculatedfinishedsquarefeet':\
+    'sqft', 'taxvaluedollarcnt': 'assessed_worth', 'yearbuilt':'year', 'taxamount':'property_taxes',\
+    'propertylandusetypeid':'use', 'fips':'county'})
+    print(f"--------------------------------------------")
+    print(f"Renamed columns for ease of use")
+
+    # drop all nulls
+    df_clean = df.dropna()
+    print(f"NaN's removed - Percent Original Data Remaining: {round(df_clean.shape[0]/df.shape[0]*100,0)}")
+
+    # drop parcelid and use (used for initial exploration only)
+    df_clean = df_clean.drop(columns=['parcelid', 'use'])
+
+    # move target column to index position 0
+    df_clean.insert(0, 'assessed_worth', df_clean.pop('assessed_worth'))
+    print(f"Moved target column to index 0 for ease of assignment")
+
+    # change data types and map FIPS code
+    df_clean.county = df_clean.county.map({6037:"LA", 6059:"Orange", 6111:"Ventura"})
+    df_clean.bed = df_clean.bed.astype(int)
+    df_clean.year = df_clean.year.astype(int)
+    print(f"Bed and year data types changed from float to integer\nChanged FIPS code to actual county name")
+
+    # outliers
+    df_clean = df_clean [df_clean.sqft < 5_000]
+    # df_clean = df_clean [df_clean.assessed_worth < df_clean.assessed_worth.quantile(.95)].copy()
+    df_clean = df_clean [(df_clean.bath < 9) & (df_clean.bath > 0)]
+    df_clean = df_clean [df_clean.bed < 7]
+    df_clean = df_clean [df_clean.year > 1900]
+    df_clean = df_clean [df_clean.property_taxes < 125_000]
+    upper_bound, lower_bound = outlier(df_clean, 'assessed_worth', 1.5)
+    df_clean = df_clean [(df_clean.assessed_worth <= upper_bound) & (df_clean.assessed_worth >= lower_bound)]
+    print(f"Outliers removed: Percent Original Data Remaining: {round(df_clean.shape[0]/df.shape[0]*100,0)}\n Kept sqft < 5,000\n Property Taxes < $125,000\n Bathrooms > 0 and < 9\n Bedrooms < 7\n Built after 1900\n Assessed Worth outliers out of IQR*1.5")
+
+    # encode / get dummies
+    # dummy_df = pd.get_dummies(df_clean[['county']], dummy_na=False, drop_first=[True])
+
+    # clean up and return final product
+    # df_clean = pd.concat([df_clean, dummy_df], axis=1).drop(columns=['county'])
+    # df_clean = df_clean.rename(columns={'county_Orange':'orange','county_Ventura':'ventura'})
     return df_clean
 
 # -------------------------------------------------------------------------
@@ -126,7 +201,7 @@ def split_zillow(df):
     '''
     train_validate, test = train_test_split(df, test_size=.2, random_state=123)
     train, validate = train_test_split(train_validate,
-                                       test_size=.25,
+                                       test_size=.20,
                                        random_state=123)
     
     print(f'Prepared DF: {df.shape}')
@@ -144,20 +219,37 @@ def x_y_train_validate_test(train, validate, test, target):
     """This function takes in the train, validate, and test dataframes and assigns 
     the chosen features to X_train, X_validate, X_test, and y_train, y_validate, 
     and y_test.
-    """
-
+    """ 
     # X_train, validate, and test to be used for modeling
-    X_train = train[1:]
-    X_validate = validate[1:]
-    X_test = test[1:]
+    X_train = train.drop(columns='assessed_worth')
+    X_validate = validate.drop(columns='assessed_worth')
+    X_test = test.drop(columns='assessed_worth')
     y_train = train[{target}]
     y_validate = validate[{target}]
     y_test = test[{target}]
+
+    # encode / get dummies
+    dummy_df1 = pd.get_dummies(X_train[['county']], dummy_na=False, drop_first=[True]).rename(columns={'county_Orange':'orange','county_Ventura':'ventura'})
+    dummy_df2 = pd.get_dummies(X_validate[['county']], dummy_na=False, drop_first=[True]).rename(columns={'county_Orange':'orange','county_Ventura':'ventura'})
+    dummy_df3 = pd.get_dummies(X_test[['county']], dummy_na=False, drop_first=[True]).rename(columns={'county_Orange':'orange','county_Ventura':'ventura'})
     
+    # clean up and return final products
+    X_train = pd.concat([X_train, dummy_df1], axis=1)
+    X_validate = pd.concat([X_validate, dummy_df2], axis=1)
+    X_test = pd.concat([X_test, dummy_df3], axis=1)
+
+    # drop column
+    X_train = X_train.drop(columns=['county'])
+    X_validate = X_validate.drop(columns=['county'])
+    X_test = X_test.drop(columns=['county'])  
+
+    print(f"Encode successful...")
+
+    #verifying number of features and target
     print(f"Verifying number of features and target:")
-    print(f'Train: {X_train.shape[1], y_train.shape[1]}')
-    print(f'Validate: {X_validate.shape[1], y_validate.shape[1]}')
-    print(f'Test: {X_test.shape[1], y_test.shape[1]}')
+    print(f'Train: {X_train.shape, y_train.shape}')
+    print(f'Validate: {X_validate.shape, y_validate.shape}')
+    print(f'Test: {X_test.shape, y_test.shape}')
 
     return X_train, y_train, X_validate, y_validate, X_test, y_test
 
@@ -168,6 +260,10 @@ def x_y_train_validate_test(train, validate, test, target):
 def scale_zillow(X_train, X_validate, X_test):
     """This function is built to take in train, validate, and test dataframes
     and scale them returning a visual of the before and after.
+
+    Returns scaled df's for train, validate, and test.
+
+    format = (X_train_scaled_ro, X_validate_scaled_ro, X_test_scaled_ro)
     """
 
     # make the scaler
@@ -180,32 +276,32 @@ def scale_zillow(X_train, X_validate, X_test):
     robustscaler.fit(X_train)
 
     # use the scaler
-    X_train_scaled_ro = robustscaler.transform(X_train)
-    X_validate_scaled_ro = robustscaler.transform(X_validate)
-    X_test_scaled_ro = robustscaler.transform(X_test)
+    X_train_scaled_ro = pd.DataFrame(robustscaler.transform(X_train))
+    X_validate_scaled_ro = pd.DataFrame(robustscaler.transform(X_validate))
+    X_test_scaled_ro = pd.DataFrame(robustscaler.transform(X_test))
 
     # visualize
     plt.figure(figsize=(13, 8))
 
     ax = plt.subplot(321)
-    plt.hist(X_train, bins=25, ec='black')
+    plt.hist(X_train, bins=50, ec='black')
     plt.title('Original Train')
     ax = plt.subplot(322)
-    plt.hist(X_train_scaled_ro, bins=25, ec='black')
+    plt.hist(X_train_scaled_ro, bins=50, ec='black')
     plt.title('Scaled Train')
 
     ax = plt.subplot(323)
-    plt.hist(X_validate, bins=25, ec='black')
+    plt.hist(X_validate, bins=50, ec='black')
     plt.title('Original Validate')
     ax = plt.subplot(324)
-    plt.hist(X_validate_scaled_ro, bins=25, ec='black')
+    plt.hist(X_validate_scaled_ro, bins=50, ec='black')
     plt.title('Scaled Validate')
 
     ax = plt.subplot(325)
-    plt.hist(X_test, bins=25, ec='black')
+    plt.hist(X_test, bins=50, ec='black')
     plt.title('Original Test')
     ax = plt.subplot(326)
-    plt.hist(X_test_scaled_ro, bins=25, ec= 'black')
+    plt.hist(X_test_scaled_ro, bins=50, ec= 'black')
     plt.title('Scaled Test')
     
     plt.subplots_adjust(left=0.1,
@@ -216,3 +312,105 @@ def scale_zillow(X_train, X_validate, X_test):
                     hspace=0.4)
     
     plt.show()
+
+    return X_train_scaled_ro, X_validate_scaled_ro, X_test_scaled_ro
+
+
+
+def inverse_robust(scaled_df):
+    """This function takes in the robustscaler object and returns the inverse
+    
+    format to return original df = robustscaler_back = function()
+    """
+    robustscaler_back = pd.DataFrame(robustscaler.inverse_transform(scaled_df))
+
+    # visualize if you want it too
+    # plt.figure(figsize=(13, 6))
+    # plt.subplot(121)
+    # plt.hist(X_train_scaled_ro, bins=50, ec='black')
+    # plt.title('Scaled')
+    # plt.subplot(122)
+    # plt.hist(robustscaler_back, bins=50, ec='black')
+    # plt.title('Inverse')
+    # plt.show()
+
+    return robustscaler_back
+
+def scale_zillow_2(X_train, X_validate, X_test):
+    """This function is built to take in train, validate, and test dataframes
+    and scale them returning a visual of the before and after.
+
+    Returns scaled df's for train, validate, and test.
+
+    format: X_train_scaled_mm, X_validate_scaled_mm, X_test_scaled_mm = function()
+    """
+    # make the scaler
+    minmaxscaler = sklearn.preprocessing.MinMaxScaler()
+
+    # Note that we only call .fit with the training data,
+    # but we use .transform to apply the scaling to all the data splits.
+
+    # fit the scaler on train ONLY
+    minmaxscaler.fit(X_train)
+
+    # use the scaler
+    X_train_scaled_mm = pd.DataFrame(minmaxscaler.transform(X_train))
+    X_validate_scaled_mm = pd.DataFrame(minmaxscaler.transform(X_validate))
+    X_test_scaled_mm = pd.DataFrame(minmaxscaler.transform(X_test))
+
+    # visualize
+    plt.figure(figsize=(13, 8))
+
+    plt.subplot(321)
+    plt.hist(X_train, bins=50, ec='black')
+    plt.title('Original Train')
+    plt.subplot(322)
+    plt.hist(X_train_scaled_mm, bins=50, ec='black')
+    plt.title('Scaled Train')
+
+    plt.subplot(323)
+    plt.hist(X_validate, bins=50, ec='black')
+    plt.title('Original Validate')
+    plt.subplot(324)
+    plt.hist(X_validate_scaled_mm, bins=50, ec='black')
+    plt.title('Scaled Validate')
+
+    plt.subplot(325)
+    plt.hist(X_test, bins=50, ec='black')
+    plt.title('Original Test')
+    plt.subplot(326)
+    plt.hist(X_test_scaled_mm, bins=50, ec= 'black')
+    plt.title('Scaled Test')
+    
+    plt.subplots_adjust(left=0.1,
+                    bottom=0.1, 
+                    right=0.9, 
+                    top=0.9, 
+                    wspace=0.4, 
+                    hspace=0.4)
+    
+    plt.show()
+
+    return X_train_scaled_mm, X_validate_scaled_mm, X_test_scaled_mm
+
+
+
+def inverse_minmax(scaled_df): # Need to connect with funtion above to work
+    """This function takes in the MinMaxScaler object and returns the inverse
+    
+    format to return original df = minmaxscaler_back = function()
+    """
+
+    minmaxscaler_back = pd.DataFrame(minmaxscaler.inverse_transform(scaled_df))
+
+    # visualize if you want it too
+    # plt.figure(figsize=(13, 6))
+    # plt.subplot(121)
+    # plt.hist(X_train_scaled_ro, bins=50, ec='black')
+    # plt.title('Scaled')
+    # plt.subplot(122)
+    # plt.hist(robustscaler_back, bins=50, ec='black')
+    # plt.title('Inverse')
+    # plt.show()
+
+    return minmaxscaler_back
