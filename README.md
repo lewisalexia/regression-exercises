@@ -10,7 +10,7 @@
 - Scaling complete (used robust scaler)
 
 
-- 5/11/23
+5/11/23
 - Switched to MinMaxScaler for second iteration
 - Regression Metrics complete
 - Working on Feature Engineering
