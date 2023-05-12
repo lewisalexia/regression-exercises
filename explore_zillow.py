@@ -170,8 +170,7 @@ def plot_categorical_and_continuous_vars(df):
         print()
 
         # visualize 3
-        sns.lmplot(data=df, x=col, y=target, scatter=True, hue='county', col=None)
-        plt.title(f"{col.lower().replace('_',' ')} vs {target} for county type")
+        sns.scatterplot(data=df, x=col, y=target)
         plt.axvline(pop_mn, label=(f"{col.lower().replace('_',' ')} mean"), color='red',\
            linestyle='--')
         plt.axhline(df[target].mean(), label=(f"{target.lower().replace('_',' ')} mean"), \
@@ -179,6 +178,8 @@ def plot_categorical_and_continuous_vars(df):
         plt.legend()
         plt.show()
         print()
+
+# -------------------------------------------------------------------------
 
 # KEILA'S BATHROOM FULL AND HALF CODE
 def categorize_bathrooms(bath):
@@ -189,3 +190,5 @@ def categorize_bathrooms(bath):
     
 # create a new column with the categorized bathrooms
 # train['bathroom_type'] = train['bathroom'].apply(categorize_bathrooms)
+
+# -------------------------------------------------------------------------

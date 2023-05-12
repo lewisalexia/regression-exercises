@@ -137,7 +137,7 @@ def wrangle_zillow(df):
 
     # drop all nulls
     df_clean = df.dropna()
-    print(f"NaN's removed - Percent Original Data Remaining: {round(df_clean.shape[0]/df.shape[0]*100,0)}")
+    print(f"NaN's removed: Percent Original Data Remaining: {round(df_clean.shape[0]/df.shape[0]*100,0)}")
 
     # drop parcelid and use (used for initial exploration only)
     df_clean = df_clean.drop(columns=['parcelid', 'use'])
@@ -200,7 +200,7 @@ def split_zillow(df):
 
 # X_train, y_train, X_validate, y_validate, X_test, y_test
 
-def x_y_train_validate_test(train, validate, test, target):
+def x_y_train_validate_test(train, validate, test, target, derived):
     """This function takes in the train, validate, and test dataframes and assigns 
     the chosen features to X_train, X_validate, X_test, and y_train, y_validate, 
     and y_test.
@@ -208,13 +208,13 @@ def x_y_train_validate_test(train, validate, test, target):
     Format: X_train, y_train, X_validate, y_validate, X_test, y_test = function()
     """ 
     # X_train, validate, and test to be used for modeling
-    X_train = train.drop(columns=target)
+    X_train = train.drop(columns=[target, derived])
     y_train = train[{target}]
 
-    X_validate = validate.drop(columns=target)
+    X_validate = validate.drop(columns=[target, derived])
     y_validate = validate[{target}]
    
-    X_test = test.drop(columns=target)
+    X_test = test.drop(columns=[target, derived])
     y_test = test[{target}]
 
     print(f"Variable assignment successful...")
